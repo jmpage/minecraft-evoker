@@ -1,0 +1,359 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Creates a minecraft server in s3",
+
+  "Parameters" : {
+    "ServerFilename" : {
+      "Description" : "The filename of the server that you placed in S3.",
+      "Type" : "String"
+    },
+
+    "InstanceType" : {
+      "Description" : "Minecraft EC2 instance type",
+      "Type" : "String",
+      "AllowedValues" : [ "t1.micro", "t2.nano", "t2.micro", "t2.small", "t2.medium", "t2.large", "m1.small", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "m3.medium", "m3.large", "m3.xlarge", "m3.2xlarge", "m4.large", "m4.xlarge", "m4.2xlarge", "m4.4xlarge", "m4.10xlarge", "c1.medium", "c1.xlarge", "c3.large", "c3.xlarge", "c3.2xlarge", "c3.4xlarge", "c3.8xlarge", "c4.large", "c4.xlarge", "c4.2xlarge", "c4.4xlarge", "c4.8xlarge", "r3.large", "r3.xlarge", "r3.2xlarge", "r3.4xlarge", "r3.8xlarge"],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+
+    "SpotBid": {
+      "Description": "The bid for the spot instance",
+      "Type" : "String"
+    },
+
+    "OperatorEMail": {
+      "Description": "EMail address to notify if there are any scaling operations",
+      "Type": "String",
+      "AllowedPattern": "([a-zA-Z0-9_\\-\\.]+)@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.)|(([a-zA-Z0-9\\-]+\\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\\]?)",
+      "ConstraintDescription": "must be a valid email address."
+    },
+
+    "KeyName" : {
+      "Description" : "The EC2 Key Pair to allow SSH access to the instances",
+      "Type" : "AWS::EC2::KeyPair::KeyName",
+      "ConstraintDescription" : "must be the name of an existing EC2 KeyPair."
+    },
+
+    "ServerName" : {
+      "Description" : "A short identifier for this server.",
+      "Type" : "String",
+      "AllowedPattern" : "[a-zA-Z0-9]+",
+      "ConstraintDescription" : "must be alphanumeric only."
+    },
+
+    "BucketName" : {
+      "Description" : "The name of the S3 bucket",
+      "Type" : "String"
+    },
+
+    "SSHLocation" : {
+      "Description" : "The IP address range that can be used to SSH to the EC2 instances",
+      "Type": "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+    }
+  },
+
+  "Mappings" : {
+    "InstanceConfigs" : {
+      "c1.medium"   : { "Arch" : "PV64" },
+      "c1.xlarge"   : { "Arch" : "PV64" },
+      "c3.2xlarge"  : { "Arch" : "HVM64" },
+      "c3.4xlarge"  : { "Arch" : "HVM64" },
+      "c3.8xlarge"  : { "Arch" : "HVM64" },
+      "c3.large"    : { "Arch" : "HVM64" },
+      "c3.xlarge"   : { "Arch" : "HVM64" },
+      "c4.2xlarge"  : { "Arch" : "HVM64" },
+      "c4.4xlarge"  : { "Arch" : "HVM64" },
+      "c4.8xlarge"  : { "Arch" : "HVM64" },
+      "c4.large"    : { "Arch" : "HVM64" },
+      "c4.xlarge"   : { "Arch" : "HVM64" },
+      "m1.large"    : { "Arch" : "PV64" },
+      "m1.medium"   : { "Arch" : "PV64", "CPUs" : 1, "MaxHeap" : 3072, "MinHeap" : 1024 },
+      "m1.small"    : { "Arch" : "PV64", "CPUs" : 1, "MaxHeap" : 1024, "MinHeap" : 512 },
+      "m1.xlarge"   : { "Arch" : "PV64" },
+      "m2.2xlarge"  : { "Arch" : "PV64" },
+      "m2.4xlarge"  : { "Arch" : "PV64" },
+      "m2.xlarge"   : { "Arch" : "PV64" },
+      "m3.2xlarge"  : { "Arch" : "HVM64" },
+      "m3.large"    : { "Arch" : "HVM64" },
+      "m3.medium"   : { "Arch" : "HVM64", "CPUs" : 1, "MaxHeap" : 3072, "MinHeap" : 1024 },
+      "m3.xlarge"   : { "Arch" : "HVM64" },
+      "m4.10xlarge" : { "Arch" : "HVM64" },
+      "m4.2xlarge"  : { "Arch" : "HVM64" },
+      "m4.4xlarge"  : { "Arch" : "HVM64" },
+      "m4.large"    : { "Arch" : "HVM64" },
+      "m4.xlarge"   : { "Arch" : "HVM64" },
+      "r3.2xlarge"  : { "Arch" : "HVM64" },
+      "r3.4xlarge"  : { "Arch" : "HVM64" },
+      "r3.8xlarge"  : { "Arch" : "HVM64" },
+      "r3.large"    : { "Arch" : "HVM64" },
+      "r3.xlarge"   : { "Arch" : "HVM64" },
+      "t1.micro"    : { "Arch" : "PV64", "CPUs" : 1, "MaxHeap" : 256, "MinHeap" : 128 },
+      "t2.large"    : { "Arch" : "HVM64" },
+      "t2.medium"   : { "Arch" : "HVM64", "CPUs" : 2, "MaxHeap" : 3072, "MinHeap" : 1024 },
+      "t2.micro"    : { "Arch" : "HVM64", "CPUs" : 1, "MaxHeap" : 512, "MinHeap" : 256 },
+      "t2.nano"     : { "Arch" : "HVM64", "CPUs" : 1, "MaxHeap" : 256, "MinHeap" : 128 },
+      "t2.small"    : { "Arch" : "HVM64", "CPUs" : 1, "MaxHeap" : 1024, "MinHeap" : 512 }
+    },
+
+    "AWSRegionArch2AMI" : {
+      "us-east-1"      : { "PV64" : "ami-3c3b632b", "HVM64" : "ami-b73b63a0" }
+    }
+
+  },
+
+  "Resources" : {
+    "S3Bucket" : {
+      "Type" : "AWS::S3::Bucket",
+      "Properties" : {
+        "BucketName" : { "Ref" : "BucketName" }
+      }
+    },
+
+    "ServerIP" : {
+      "Type" : "AWS::EC2::EIP"
+    },
+
+    "MinecraftInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [ { "Ref": "ServerRole" } ]
+      }
+    },
+
+    "ServerRole" : {
+      "Type" : "AWS::IAM::Role",
+      "Properties" : {
+        "AssumeRolePolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": [ "ec2.amazonaws.com" ]
+            },
+            "Action": [ "sts:AssumeRole" ]
+          } ]
+        },
+        "Path" : "/",
+        "Policies" : [
+          {
+            "PolicyName" : "EC2InstanceAccess",
+            "PolicyDocument" : {
+              "Statement" : [ {
+                "Effect" : "Allow",
+                "Action" : [
+                  "ec2:AssociateAddress",
+                  "ec2:EIPAssociation"
+                ],
+                "Resource" : "*"
+              } ]
+            }
+          },
+          {
+            "PolicyName" : "S3BucketAccess",
+            "PolicyDocument" : {
+              "Statement" : [
+                {
+                  "Effect" : "Allow",
+                  "Action" : [
+                    "s3:ListBucket"
+                  ],
+                  "Resource" : {
+                    "Fn::Join": ["", [
+                      "arn:aws:s3:::",
+                      { "Ref" : "BucketName" }
+                    ]]
+                  }
+                },
+                {
+                  "Effect" : "Allow",
+                  "Action" : [
+                    "s3:ListObjects",
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:DeleteObject"
+                  ],
+                  "Resource" : {
+                    "Fn::Join": ["", [
+                      "arn:aws:s3:::",
+                      { "Ref" : "BucketName" },
+                      "/servers/",
+                      { "Ref" : "ServerName" },
+                      "/*"
+                    ]]
+                  }
+                },
+                {
+                  "Effect" : "Allow",
+                  "Action" : [
+                    "s3:ListObjects",
+                    "s3:GetObject",
+                    "s3:PutObject"
+                  ],
+                  "Resource" : {
+                    "Fn::Join": ["", [
+                      "arn:aws:s3:::",
+                      { "Ref" : "BucketName" },
+                      "/common/*"
+                    ]]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+
+    "MinecraftServerGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "AvailabilityZones" : { "Fn::GetAZs" : ""},
+        "LaunchConfigurationName" : { "Ref" : "LaunchConfig" },
+        "DesiredCapacity" : "1",
+        "MinSize" : "1",
+        "MaxSize" : "1"
+      }
+    },
+
+    "LaunchConfig" : {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Metadata" : {
+        "Comment" : "Install a simple application",
+        "AWS::CloudFormation::Init" : {
+          "config" : {
+            "packages" : {
+              "yum" : {
+                "emacs" : [],
+                "java-1.8.0-openjdk" : [],
+                "screen" : []
+              }
+            },
+
+            "files" : {
+              "/etc/cfn/cfn-hup.conf" : {
+                "content" : { "Fn::Join" : ["", [
+                  "[main]\n",
+                  "stack=", { "Ref" : "AWS::StackId" }, "\n",
+                  "region=", { "Ref" : "AWS::Region" }, "\n"
+                ]]},
+                "mode"    : "000400",
+                "owner"   : "root",
+                "group"   : "root"
+              },
+
+              "/etc/cfn/hooks.d/cfn-auto-reloader.conf" : {
+                "content": { "Fn::Join" : ["", [
+                  "[cfn-auto-reloader-hook]\n",
+                  "triggers=post.update\n",
+                  "path=Resources.LaunchConfig.Metadata.AWS::CloudFormation::Init\n",
+                  "action=/opt/aws/bin/cfn-init -v ",
+                  "         --stack ", { "Ref" : "AWS::StackName" },
+                  "         --resource LaunchConfig ",
+                  "         --region ", { "Ref" : "AWS::Region" }, "\n",
+                  "runas=root\n"
+                ]]}
+              }
+            },
+
+            "services" : {
+              "sysvinit" : {
+                "cfn-hup" : { "enabled" : "true", "ensureRunning" : "true",
+                              "files" : ["/etc/cfn/cfn-hup.conf", "/etc/cfn/hooks.d/cfn-auto-reloader.conf"]}
+              }
+            },
+            "users" : {
+              "minecraft" : {
+                "homeDir" : "/home/minecraft"
+              }
+            }
+          }
+        }
+      },
+      "Properties" : {
+        "KeyName" : { "Ref" : "KeyName" },
+        "ImageId" : {
+          "Fn::FindInMap" : [
+            "AWSRegionArch2AMI",
+            { "Ref" : "AWS::Region" },
+            { "Fn::FindInMap" : [
+              "InstanceConfigs",
+              { "Ref" : "InstanceType" },
+              "Arch"
+            ] }
+          ]
+        },
+        "SpotPrice" : { "Ref" : "SpotBid" },
+        "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
+        "IamInstanceProfile": { "Ref": "MinecraftInstanceProfile" },
+        "InstanceType" : { "Ref" : "InstanceType" },
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash -xe\n",
+          "yum update -y aws-cfn-bootstrap\n",
+
+          "/opt/aws/bin/cfn-init -v ",
+          "         --stack ", { "Ref" : "AWS::StackName" },
+          "         --resource LaunchConfig ",
+          "         --region ", { "Ref" : "AWS::Region" }, "\n",
+
+          "mkdir -p /home/minecraft\n",
+          "chown minecraft /home/minecraft\n",
+
+          "echo ", { "Fn::GetAtt" : [ "ServerIP", "AllocationId" ]}, " > /var/lib/cloud/data/eip\n",
+          "echo '", { "Ref" : "BucketName" }, "' > /var/lib/cloud/data/bucket_name\n",
+          "echo '", { "Ref" : "ServerName" }, "' > /var/lib/cloud/data/server_name\n",
+          "echo '", { "Ref" : "ServerFilename" }, "' > /var/lib/cloud/data/server_filename\n",
+          "echo '", { "Fn::FindInMap" : [ "InstanceConfigs", { "Ref" : "InstanceType" }, "MaxHeap" ] }, "' > /var/lib/cloud/data/max_heap\n",
+          "echo '", { "Fn::FindInMap" : [ "InstanceConfigs", { "Ref" : "InstanceType" }, "MinHeap" ] }, "' > /var/lib/cloud/data/min_heap\n",
+          "echo '", { "Fn::FindInMap" : [ "InstanceConfigs", { "Ref" : "InstanceType" }, "CPUs" ] }, "' > /var/lib/cloud/data/cpus\n",
+
+          { "Fn::Join" : ["", [
+            "aws s3 cp s3://",
+            { "Ref" : "BucketName" },
+            "/common/scripts/bootstrap.sh ",
+            "/tmp/mc-bootstrap.sh"
+          ]]}, "\n",
+          "chmod +x /tmp/mc-bootstrap.sh\n",
+          "/tmp/mc-bootstrap.sh\n",
+
+          "/opt/aws/bin/cfn-signal -e $? ",
+          "         --stack ", { "Ref" : "AWS::StackName" },
+          "         --resource WebServerGroup ",
+          "         --region ", { "Ref" : "AWS::Region" }, "\n"
+        ]]}}
+      }
+    },
+
+    "InstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable SSH access and HTTP from the load balancer only",
+        "SecurityGroupIngress" : [
+          {
+            "IpProtocol" : "tcp",
+            "FromPort" : "22",
+            "ToPort" : "22",
+            "CidrIp" : { "Ref" : "SSHLocation" }
+          },
+          {
+            "IpProtocol" : "tcp",
+            "FromPort" : "25565",
+            "ToPort" : "25565",
+            "CidrIp" : "0.0.0.0/0"
+          }
+        ]
+      }
+    }
+  },
+
+  "Outputs" : {
+    "ServerIP" : {
+      "Description" : "The ip of your server",
+      "Value" : { "Ref" : "ServerIP" }
+    }
+  }
+}

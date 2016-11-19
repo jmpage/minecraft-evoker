@@ -1,0 +1,34 @@
+[
+  {
+    "ParameterKey": "ServerFilename",
+    "ParameterValue": "server.jar"
+  },
+  {
+    "ParameterKey": "BucketName",
+    "ParameterValue": "someBucketName"
+  },
+  {
+    "ParameterKey": "ServerName",
+    "ParameterValue": "minecraft"
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t1.micro"
+  },
+  {
+    "ParameterKey": "OperatorEMail",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "Minecraft"
+  },
+  {
+    "ParameterKey": "SSHLocation",
+    "ParameterValue": "127.0.0.1/0"
+  },
+  {
+    "ParameterKey": "SpotBid",
+    "ParameterValue": "0.01"
+  }
+]

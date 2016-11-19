@@ -1,0 +1,28 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Template for creating S3 bucket for minecraft configs and backups.",
+
+  "Parameters" : {
+    "BucketName" : {
+      "Description" : "The name of the S3 bucket",
+      "Type" : "String"
+    }
+  },
+
+  "Resources" : {
+    "S3Bucket" : {
+      "Type" : "AWS::S3::Bucket",
+      "Properties" : {
+        "BucketName" : { "Fn::Join" : [ ".", [ { "Ref" : "Domain" }, "minecraft" ] ] }
+      }
+    }
+  },
+
+  "Outputs" : {
+    "BucketArn" : {
+      "Description" : "S3 Bucket ARN",
+      "Value" :  { "Ref" : "S3Bucket" }
+    }
+  }
+}
