@@ -1,0 +1,191 @@
+#!/bin/bash
+# /etc/init.d/minecraft
+# version 0.4.2 2016-02-09 (YYYY-MM-DD)
+#
+### BEGIN INIT INFO
+# Provides:   minecraft
+# Required-Start: $local_fs $remote_fs screen-cleanup
+# Required-Stop:  $local_fs $remote_fs
+# Should-Start:   $network
+# Should-Stop:    $network
+# Default-Start:  2 3 4 5
+# Default-Stop:   0 1 6
+# Short-Description: Minecraft server
+# Description: Manages the minecraft server, provides backups.
+### END INIT INFO
+
+SCREENNAME='minecraft'
+USERNAME='minecraft'
+
+# Paths
+BUCKET_NAME=`cat /var/lib/cloud/data/bucket_name`
+SERVER_NAME=`cat /var/lib/cloud/data/server_name`
+MC_HOME="/home/$USERNAME"
+BACKUPPATH="$MC_HOME/backups"
+WORLD='world'
+
+# Server
+SERVICE='server.jar'
+OPTIONS='nogui'
+MAXHEAP=`cat /var/lib/cloud/data/max_heap`
+MINHEAP=`cat /var/lib/cloud/data/min_heap`
+CPU_COUNT=`cat /var/lib/cloud/data/cpus`
+HISTORY=1024
+INVOCATION="java -Xmx${MAXHEAP}M -Xms${MINHEAP}M -XX:+UseConcMarkSweepGC -XX:+CMSIncrementalPacing -XX:ParallelGCThreads=${CPU_COUNT} -XX:+AggressiveOpts -jar $SERVICE $OPTIONS"
+
+ME=`whoami`
+as_user() {
+  if [ "$ME" = "$USERNAME" ] ; then
+    bash -c "$1"
+  else
+    su - "$USERNAME" -s/bin/bash -c "$1"
+  fi
+}
+
+mc_start() {
+  if  pgrep -u $USERNAME -f $SERVICE > /dev/null ; then
+    echo "The server is already running!"
+  else
+    echo "Starting the server..."
+    cd $MC_HOME
+    as_user "cd $MC_HOME && screen -h $HISTORY -dmS ${SCREENNAME} $INVOCATION"
+    sleep 7
+    if pgrep -u $USERNAME -f $SERVICE > /dev/null ; then
+      echo "The server is now running."
+    else
+      echo "Error! Could not start the server!"
+    fi
+  fi
+}
+
+mc_saveoff() {
+  if pgrep -u $USERNAME -f $SERVICE > /dev/null ; then
+    echo "The server is running... suspending saves"
+    as_user "screen -p 0 -S ${SCREENNAME} -X eval 'stuff \"save-off\"\015'"
+    as_user "screen -p 0 -S ${SCREENNAME} -X eval 'stuff \"save-all\"\015'"
+    sync
+    sleep 10
+  else
+    echo "The server is not running. Not suspending saves."
+  fi
+}
+
+mc_saveon() {
+  if pgrep -u $USERNAME -f $SERVICE > /dev/null ; then
+    echo "The server is running... re-enabling saves"
+    as_user "screen -p 0 -S ${SCREENNAME} -X eval 'stuff \"save-on\"\015'"
+  else
+    echo "The server is not running. Not resuming saves."
+  fi
+}
+
+mc_stop() {
+  if pgrep -u $USERNAME -f $SERVICE > /dev/null ; then
+    echo "Stopping the server"
+    as_user "screen -p 0 -S ${SCREENNAME} -X eval 'stuff \"say SERVER SHUTTING DOWN IN 10 SECONDS. Saving map...\"\015'"
+    as_user "screen -p 0 -S ${SCREENNAME} -X eval 'stuff \"save-all\"\015'"
+    sleep 10
+    as_user "screen -p 0 -S ${SCREENNAME} -X eval 'stuff \"stop\"\015'"
+    sleep 7
+  else
+    echo "The server was not running."
+  fi
+  if pgrep -u $USERNAME -f $SERVICE > /dev/null ; then
+    echo "Error! The server could not be stopped."
+  else
+    echo "The server is stopped."
+  fi
+}
+
+mc_backup_world() {
+   mc_saveoff
+
+   local backup_file="$BACKUPPATH/backup.tar"
+   echo "Backing up minecraft world..."
+   rm -f $backup_file
+   as_user "tar -C \"$MC_HOME\" -cf \"$backup_file\" $WORLD"
+
+   mc_saveon
+
+   echo "Compressing backup..."
+   as_user "gzip -f \"$backup_file\""
+
+   local remote_dir="s3://$BUCKET_NAME/servers/$SERVER_NAME/world_backups/"
+   aws s3 ls $remote_dir > /tmp/backup_listing
+   if ( cat /tmp/backup_listing | grep -Fq "current.tgz" ); then
+     if (cat /tmp/backup_listing | grep -Fq "previous.tgz" ); then
+       aws s3 rm "${remote_dir}previous.tgz"
+     fi
+     aws s3 mv "${remote_dir}current.tgz" "${remote_dir}previous.tgz"
+   fi
+   aws s3 mv "${backup_file}.gz" "${remote_dir}current.tgz"
+
+   echo "Done."
+}
+
+mc_backup_copy() {
+  echo "Copying making longterm copy of current backup..."
+
+  local remote_dir="s3://$BUCKET_NAME/servers/$SERVER_NAME/world_backups/"
+  local today=`date -I`
+
+  aws s3 cp "${remote_dir}current.tgz" "${remote_dir}${today}.tgz"
+
+  echo "Done."
+}
+
+mc_backup_config() {
+   echo "Backing up config..."
+
+   local remote_dir="s3://$BUCKET_NAME/servers/$SERVER_NAME/configs/"
+   ls -l > /tmp/local-config-list.tmp
+   for file in "banned-ips.json" "banned-players.json" "ops.json" "server.properties" "whitelist.json" "eula.txt"; do
+     if (cat /tmp/local-config-list.tmp | grep -Fq "$file"); then
+       local local_file="$MC_HOME/$file"
+       echo "Copying $file from $MC_HOME to s3"
+       aws s3 cp "$local_file" "$remote_dir$file"
+     fi
+   done
+
+   echo "Done."
+}
+
+mc_status() {
+  if pgrep -u $USERNAME -f $SERVICE > /dev/null ; then
+    echo "Minecraft is running."
+  else
+    echo "Minecraft is not running."
+  fi
+}
+
+case "$1" in
+  start)
+    mc_start
+    ;;
+  stop)
+    mc_stop
+    ;;
+  restart)
+    mc_stop
+    mc_start
+    ;;
+  backup_world)
+    mc_backup_world
+    ;;
+  backup_config)
+    mc_backup_config
+    ;;
+  backup_copy)
+    mc_backup_copy
+    ;;
+  status)
+    mc_status
+    ;;
+
+  *)
+  echo "Usage: $0 {start|stop|backup|status|restart \"server command\"}"
+  exit 1
+  ;;
+esac
+
+exit 0
