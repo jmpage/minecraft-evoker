@@ -63,7 +63,7 @@
       "c3.2xlarge"  : { "Arch" : "HVM64" },
       "c3.4xlarge"  : { "Arch" : "HVM64" },
       "c3.8xlarge"  : { "Arch" : "HVM64" },
-      "c3.large"    : { "Arch" : "HVM64" },
+      "c3.large"    : { "Arch" : "HVM64", "CPUs" : 2, "MaxHeap" : 3072, "MinHeap" : 1024 },
       "c3.xlarge"   : { "Arch" : "HVM64" },
       "c4.2xlarge"  : { "Arch" : "HVM64" },
       "c4.4xlarge"  : { "Arch" : "HVM64" },
@@ -100,7 +100,7 @@
     },
 
     "AWSRegionArch2AMI" : {
-      "us-east-1"      : { "PV64" : "ami-3c3b632b", "HVM64" : "ami-b73b63a0" }
+      "us-east-1"      : { "PV64" : "ami-04fd32edb4e0254e9", "HVM64" : "ami-035b3c7efe6d061d5" }
     }
 
   },
