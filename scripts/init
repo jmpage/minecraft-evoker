@@ -98,37 +98,37 @@ mc_stop() {
 }
 
 mc_backup_world() {
-   if lockfile "$BACKUPPATH/backup.lock"; then
-     echo "Locked backup lockfile"
-   else
-     echo "Failed to lock lockfile"
-     exit 1
-   fi
+  if lockfile "$BACKUPPATH/backup.lock"; then
+    echo "Locked backup lockfile"
+  else
+    echo "Failed to lock lockfile"
+    exit 1
+  fi
 
-   mc_saveoff
-   local backup_file="$BACKUPPATH/backup.tar"
-   echo "Backing up minecraft world..."
-   rm -f $backup_file
-   as_user "nice -n 19 tar -C \"$MC_HOME\" -cf \"$backup_file\" $WORLD"
+  mc_saveoff
+  local backup_file="$BACKUPPATH/backup.tar"
+  echo "Backing up minecraft world..."
+  rm -f $backup_file
+  as_user "nice -n 19 tar -C \"$MC_HOME\" -cf \"$backup_file\" $WORLD"
 
-   mc_saveon
+  mc_saveon
 
-   echo "Compressing backup..."
-   as_user "nice -n 19 gzip -f \"$backup_file\""
+  echo "Compressing backup..."
+  as_user "nice -n 19 gzip -f \"$backup_file\""
 
-   local remote_dir="s3://$BUCKET_NAME/servers/$SERVER_NAME/world_backups/"
-   aws s3 ls $remote_dir > /tmp/backup_listing
-   if ( cat /tmp/backup_listing | grep -Fq "current.tgz" ); then
-     if (cat /tmp/backup_listing | grep -Fq "previous.tgz" ); then
-       aws s3 rm "${remote_dir}previous.tgz"
-     fi
-     aws s3 mv "${remote_dir}current.tgz" "${remote_dir}previous.tgz"
-   fi
-   aws s3 mv "${backup_file}.gz" "${remote_dir}current.tgz"
+  local remote_dir="s3://$BUCKET_NAME/servers/$SERVER_NAME/world_backups/"
+  aws s3 ls $remote_dir > /tmp/backup_listing
+  if ( cat /tmp/backup_listing | grep -Fq "current.tgz" ); then
+    if (cat /tmp/backup_listing | grep -Fq "previous.tgz" ); then
+      aws s3 rm "${remote_dir}previous.tgz"
+    fi
+    aws s3 mv "${remote_dir}current.tgz" "${remote_dir}previous.tgz"
+  fi
+  aws s3 mv "${backup_file}.gz" "${remote_dir}current.tgz"
 
-   echo "Removing lockfile"
-   rm -f "$BACKUPPATH/backup.lock"
-   echo "Done."
+  echo "Removing lockfile"
+  rm -f "$BACKUPPATH/backup.lock"
+  echo "Done."
 }
 
 mc_backup_copy() {
