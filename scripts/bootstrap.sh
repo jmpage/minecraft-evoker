@@ -44,7 +44,7 @@ download_world() {
 download_configs() {
   local remote_dir="s3://$BUCKET_NAME/servers/$SERVER_NAME/configs/"
   aws s3 ls $remote_dir > /tmp/s3-config-list.tmp
-  for file in "banned-ips.json" "banned-players.json" "ops.json" "server.properties" "whitelist.json" "eula.txt"; do
+  for file in "banned-ips.json" "banned-players.json" "bukkit.yml" "commands.yml" "eula.txt" "help.yml" "ops.json" "permissions.yml" "server.properties" "spigot.yml" "whitelist.json"; do
     if (cat /tmp/s3-config-list.tmp | grep -Fq "$file"); then
       local local_file="$MC_HOME/$file"
       echo "Copying $file from s3 to $MC_HOME"
