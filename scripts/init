@@ -109,7 +109,7 @@ mc_backup_world() {
   local backup_file="$BACKUPPATH/backup.tar"
   echo "Backing up minecraft world..."
   rm -f $backup_file
-  as_user "nice -n 19 tar -C \"$MC_HOME\" -cf \"$backup_file\" $WORLD"
+  as_user "nice -n 19 tar -C \"$MC_HOME\" -cf \"$backup_file\" $WORLD*"
 
   mc_saveon
 
